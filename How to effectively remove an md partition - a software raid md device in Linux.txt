@@ -1,0 +1,42 @@
+How to effectively remove an md partition (software RAID) in Linux:
+
+1. Identify the RAID device and partitions
+   * Use cat /proc/mdstat to list active RAID devices. Note the device name (e.g. /dev/md0)
+     and the member disks (e.g. /dev/sda1, /dev/sdb1)
+   * Use lsblk to verify the partitions and their corresponding mount points
+ 
+2. Unmount the RAID partition (if mounted)
+   * sudo umount /path/to/mountpoint
+   * remove the corresponding entry from /etc/fstab to prevent it from being automatically
+     mounted on reboot
+3. Stop the RAID device
+   * Use sudo mdadm --stop /dev/mdX (replace X with the RAID device number)
+
+4. Remove the RAID device from configuration
+   * Edit /etc/mdadm/mdadm.conf and remove the corresponding lines for the RAID device
+   * Use sudo mdadm --remove /dev/mdX (replace X with the RAID device number)
+5. Zero out the superblocks
+   * For each member disk of the RAID array, use 
+     sudo mdadm --zero-superblock /dev/sdX (replace X with the disk identifier, e.g. /dev/sda1)
+     This step is crucial to remove the RAID metadata from the disks
+
+6. Verify and clean up
+   * After completing the above steps, you can verify that the RAID array is gone by checking the /proc/mdstat
+   * You can use fdisk or parted to manage the individual partitions on the disks as needed.
+
+7. Using dd command if the above commands are not available to make sure there was no weird data on the disk to
+   confuse the Linux OS installer
+   
+   1st - to remove the first 100MBytes of the disk
+         sudo dd if=/dev/zero of=/dev/$disk bs=1M count=100 status=progress oflag=sync
+   
+   2nd - since some raid scheme stored up the metadata at the last 20KBytes on the drive - zeroing these sectors
+         are necessary
+         sudo dd if=/dev/zero of=/dev/sda bs=1024 seek=(<blocks>-20) count=20
+
+   Note: 
+   <blocks> is the TOTAL number of bytes on the disk, divided by 1024.        
+   Using fdisk you'll be able to see the total bytes of your drive. 
+   Then divide that with 1024, you will get the total number of blocks in your sdd drive
+   Ex below /dev/sda  total bytes = 960,197,124,096      
+      blocks=960,197,124,096/1024 seek=937,692,504
