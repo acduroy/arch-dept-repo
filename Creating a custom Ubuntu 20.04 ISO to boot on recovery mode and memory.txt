@@ -1,0 +1,243 @@
+--------------------
+Creating a custom Ubuntu 20.04 ISO for recovery mode
+Ref: https://help.ubuntu.com/community/LiveCDCustomization
+Ref: https://pl.archive.ubuntu.com/ubuntu/ubuntu/pool/main/l/linux-hwe-5.15/
+--------------------
+Building a customized Ubuntu 20.04 ISO that boots into recovery mode can be helpful for various system administration and troubleshooting tasks. 
+While not as straightforward as a standard installation, it's achievable with some steps. 
+
+Here's a detailed guide:
+1. Prepare your environment
+   Download the Ubuntu 20.04 ISO: Get the official desktop image from the Ubuntu releases website.
+   Set up a working directory: 
+   - Create a dedicated folder to extract and modify the ISO contents. 
+     For example: 
+     mkdir ~/custom_live_cd && cd ~/custom_live_cd.
+   
+   - Install necessary tools: You'll likely need tools like squashfs-tools and xorriso (or genisoimage) to unpack, modify, and repack the ISO. 
+     You can install them using: 
+     sudo apt update && sudo apt install squashfs-tools xorriso. 
+
+2. Extract and modify the ISO
+- Mount the ISO: Make the downloaded ISO accessible by mounting it to a temporary directory: 
+  sudo mkdir isomount && sudo mount -o loop ubuntu-20.04.1-desktop-amd64.iso isomount
+
+  OR
+
+  sudo mkdir isomount && sudo mount -o loop  ubuntu-20.04.6-live-server-amd64.iso isomount
+
+- Extract the ISO contents: Copy the contents of the mounted ISO to your working directory, excluding the compressed filesystem: 
+  sudo rsync --exclude=/casper/filesystem.squashfs -a isomount/ extracted.
+
+- Extract the squashfs filesystem: This contains the live system's root filesystem. Extract it to a new directory: 
+  sudo unsquashfs isomount/casper/filesystem.squashfs.
+
+  Before chroot to the root filesystem:
+  Mount necessary pseudo-filesystems.
+    sudo mount --bind /dev chroot_env/dev
+    sudo mount --bind /proc chroot_env/proc
+    sudo mount --bind /sys chroot_env/sys
+
+  Note: replace chroot_env to the name of your extracted root file system. In this case "squashfs-root"
+    sudo mount --bind /dev squashfs-root/dev
+    sudo mount --bind /proc squashfs-root/proc
+    sudo mount --bind /sys squashfs-root/sys
+
+- Chroot into the extracted filesystem: This allows you to interact with the live system as if it were running on your machine: 
+  sudo chroot squashfs-root.
+
+- Customize the system for recovery:
+  Install any additional packages or utilities you might need in your recovery environment using apt.
+  Edit relevant configuration files like /etc/fstab if you want to include specific partitions or options.
+  Modify the initramfs to include custom scripts or modules you might need during recovery. 
+  You can also explore options to configure automatic actions or scripts within the initramfs environment itself.
+  Consider adding custom scripts to the recovery environment to automate specific tasks or troubleshooting steps.
+
+- Exit the chroot environment: Once you've finished your modifications, type exit to leave the chroot.
+
+- Rebuild the squashfs filesystem: Compress the modified filesystem back into a squashfs image: 
+  sudo mksquashfs squashfs-root extracted/casper/filesystem.squashfs. 
+
+3. Modify the boot loader
+Modify grub.cfg (or isolinux.cfg for older systems): This is crucial for enabling recovery mode booting.
+Locate the grub.cfg file within the extracted ISO content (usually in extracted/boot/grub/).
+Identify the existing recovery mode entries or create a new one. You can find examples or general guidance on modifying Grub menu entries.
+Within the recovery mode entry, you might want to add kernel parameters like single or init=/bin/bash to immediately drop into a root shell.
+Modify isolinux/txt.cfg (if applicable): For systems that rely on isolinux for booting, edit isolinux/txt.cfg to include similar recovery options. 
+
+4. Rebuild the ISO
+Use xorriso or genisoimage to create the new ISO:
+For xorriso: sudo xorriso -as mkisofs -r -V "Custom Ubuntu Recovery" -o ../custom-ubuntu-recovery.iso -J -l -b boot/grub/i386-pc/eltorito.img -c boot.catalog -no-emul-boot -boot-load-size 4 -boot-info-table extracted.
+Replace Custom Ubuntu Recovery with your desired ISO label and adjust the boot image paths if necessary. 
+5. Test the custom ISO
+Create a bootable USB drive using a tool like Startup Disk Creator or Rufus.
+Boot from the USB drive and verify that the recovery mode option works as expected. 
+Additional tips
+Use a Virtual Machine (VM) to test the ISO before applying it to physical hardware to avoid accidental data loss.
+Document your changes to keep track of modifications and facilitate future updates.
+Consider using tools like Cubic if you prefer a more user-friendly interface for customizing ISOs.
+For highly customized installations, explore preseed files and unattended installation methods mentioned in the search results. 
+By following these steps, you can create a custom Ubuntu 20.04 ISO specifically tailored to your recovery needs
+
+--------------
+Customizing an Ubuntu 20.04 ISO to boot in recovery mode
+--------------
+Booting an Ubuntu 20.04 system into recovery mode usually involves interacting with the GRUB bootloader menu during startup. Customizing an ISO to automatically or easily boot into recovery mode would involve modifying the GRUB configuration embedded within the ISO. Here's a general approach: 
+1. Extract the ISO contents
+Create a working directory: mkdir ~/myiso && cd ~/myiso.
+Copy the Ubuntu 20.04 ISO to this directory: cp /path/to/ubuntu-20.04-desktop-amd64.iso ~/myiso/.
+Mount the ISO: mkdir isomount && sudo mount -o loop ubuntu-20.04-desktop-amd64.iso isomount.
+Extract the contents: mkdir extracted && rsync -a isomount/ extracted. 
+2. Modify GRUB configuration
+Locate the GRUB configuration file(s): This will likely be within the extracted/boot/grub/ or extracted/boot/grub2/ directory and might be named grub.cfg, although it could also be generated from other files like /etc/default/grub.
+Identify the boot entry for normal Ubuntu: You'll be looking for a menu entry that normally boots Ubuntu.
+Add a recovery mode boot entry (or modify an existing one): You'll want to either duplicate the existing Ubuntu entry and add the systemd.unit=rescue.target parameter to the kernel command line, or explicitly modify an existing "recovery mode" entry if it exists to be easily accessible or the default.
+Note: Adding parameters to the kernel line usually involves appending them to the line starting with linux (or kernel$) after a space.
+Example (conceptual): You might add or modify a section that looks something like this:
+menuentry 'Ubuntu, with Linux ... (recovery mode - Customized)' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-simple-...' {
+    ...
+    linux /boot/vmlinuz-... root=UUID=... ro  quiet splash  systemd.unit=rescue.target
+    ...
+}
+Alternatively, you could try setting GRUB_DEFAULT to the index of your desired recovery mode entry in the /etc/default/grub file before rebuilding the ISO, according to OSTechNix. 
+3. Rebuild the ISO
+Use xorriso to repackage the modified contents into a new ISO:
+sudo xorriso -as mkisofs -r -V "My Custom Ubuntu" -o ../custom-ubuntu-recovery.iso extracted
+Replace "My Custom Ubuntu" with a suitable label for your ISO. 
+4. Test the customized ISO
+Burn the new custom-ubuntu-recovery.iso to a USB drive or DVD.
+Boot a computer or virtual machine from this newly created medium.
+Verify that your recovery mode options are available and functional as expected. You may need to press the Shift or Esc key during boot to bring up the GRUB menu if it's not automatically displayed. 
+Important considerations
+Backup everything before modifying your ISO or GRUB configuration.
+Incorrectly modifying GRUB configuration can prevent your system from booting.
+This process requires a solid understanding of Linux and GRUB.
+If you only need to boot into recovery mode occasionally, it's easier to manually access the GRUB menu during boot. 
+This detailed approach guides you through customizing an Ubuntu 20.04 ISO to boot directly into recovery mode. Remember to proceed with caution and create backups before making any changes
+
+-------------
+Customizing an Ubuntu 20.04 ISO to boot from memory
+-------------
+To customize an Ubuntu 20.04 ISO and configure it to boot from memory (RAM), you essentially need to modify the ISO image and then potentially the bootloader configuration to instruct the system to load the entire live environment into RAM. Here's a general approach:
+1. Prepare for customization
+System Requirements: At least 100 GB of free disk space and at least 4 GB of RAM (more is recommended). You'll also need tools like xorriso, squashfs-tools, and optionally binwalk, casper, live-boot, live-boot-initramfs-tools.
+Working Environment: It's strongly recommended to perform the customization from an installed copy of the same Ubuntu version you're modifying. 
+2. Extract and modify the ISO
+Extract ISO Contents: Mount the ISO file or extract its contents to a working directory. You can use commands like: sudo mount -o loop,ro /path/to/your.iso /mnt/image to mount and then copy the contents, or simply 7z x Your.iso -oWhere/You/Want/It/Extracted/To to extract the entire ISO content.
+Modify Filesystem: The core modifications will occur within the extracted filesystem. You can use a chroot environment to treat this extracted filesystem as if it were the root filesystem of your running system. This allows you to install or remove packages, change settings, add custom scripts, and configure default settings like background and theme.
+Add Customizations: For example, you might add a custom repository, install specific packages, and configure custom udev rules.
+Include Custom Scripts: If you have scripts you want to run after the system boots or during installation, copy them to appropriate locations within the extracted filesystem. 
+3. Customize the boot process (for booting from RAM)
+Add toram to Boot Parameters: The toram option instructs the system to load the entire live environment into RAM. When booting the ISO, you can edit the GRUB menu entry (by pressing 'e') and add toram to the end of the linux line: linux /casper/vmlinuz boot=casper iso-scan/filename=/<ISO-name.iso> noprompt noeject toram --.
+Persistent Storage (Optional): If you want to retain changes made during a live session, you can use persistent storage. Tools like Rufus or mkusb allow you to create a persistent partition when creating the bootable USB drive.
+Automate toram (Advanced): To make the toram option permanent, you could potentially modify the grub.cfg file within the ISO to include the toram option in the default boot entry. This is a more involved process. 
+4. Rebuild the ISO
+Compress the filesystem: Use mksquashfs to recompress the modified filesystem into a SquashFS file (e.g., filesystem.squashfs).
+Create the new ISO: Use a tool like xorriso to create the new ISO image, including the modified SquashFS and potentially the updated grub.cfg file and any custom scripts or boot files. 
+5. Test the custom ISO
+Boot the ISO: Create a bootable USB drive using the customized ISO. You can use tools like Rufus or the Startup Disk Creator in Ubuntu.
+Verify Boot from RAM: Boot from the USB drive and confirm that the system is indeed running from RAM (e.g., by checking available memory and disk usage).
+Check Customizations: Verify that all your added software, scripts, and configurations are present and functioning correctly. 
+Important notes
+Backups: Always back up your original Ubuntu ISO and any important data before attempting customization.
+Experimentation: Customizing ISOs can be complex. Start with small changes and test frequently.
+Documentation: Refer to the official Ubuntu Community Help Wiki and manpages for tools like casper for more detailed information and troubleshooting tips.
+
+----------------------
+Ref #1: https://unix.stackexchange.com/questions/769384/boot-linux-into-ram-from-iso-file-on-hard-drive-and-do-a-clean-linux-reinstallat
+Ref #2: https://github.com/linuxmint/ubiquity/issues/51
+----------------------
+I found a solution here(link to Ref #2)  and also tested that this works.
+
+In short, the procedure was the following:
+
+Extract an existing Ubuntu 22.04 ISO installation file to a temporary location.
+Extract the casper/initrd file to a temporary location.
+Add the following lines to the casper/scripts/casper-bottom/05mountpoints file (just before the last line in the file):
+if grep -q '^[^ ]* /isodevice ' /proc/mounts; then
+    mkdir -p /root/isodevice
+    mount -n -o move /isodevice /root/isodevice.
+fi
+(I actually skipped the if statement, only added the mkdir and mount commands)
+
+Repack the initrd file and replace the original one.
+Repack the ISO file.
+Copy the modified ISO file to the hard drive where grub can then find it.
+Restart the computer and boot the ISO file using toram option in grub.
+Open a terminal window and type the following commands:
+sudo losetup -d /dev/loop0
+sudo umount /isodevice
+Now you should be able to repartition the hard drive and install Ubuntu 22.04 over Ubuntu 14.04 on the same hard drive (without having to go through all normal upgrading steps 16.04 -> 18.04 -> 20.04 which doesn't work so well).
+Without these steps Ubuntu 22.04 couldn't repartition hard drive (where it was booted from) and GParted complained that there were a file system in use.
+
+-------
+Ref #2 link's content:
+-------
+# mount the original linux mint iso image
+  mkdir /tmp/isomount
+  sudo mount -o loop /boot/grml/linuxmint-21.1-cinnamon-64bit.iso /tmp/isomount/
+
+# extract initramfs from the iso image
+  mkdir /tmp/initrd_out
+  unmkinitramfs -v /tmp/isomount/casper/initrd.lz /tmp/initrd_out
+
+# PATCH FILE "scripts/casper-bottom/05mountpoints"
+sed -i -E "s/mount -n -o move \/cdrom \/root\/cdrom/mount -n -o move \/cdrom \/root\/cdrom\n\nif grep -q \'\^\[\^ \]\* \/isodevice \' \/proc\/mounts; then\n       mkdir -p \/root\/isodevice\n       mount -n -o move \/isodevice \/root\/isodevice\nfi/" /tmp/initrd_out/main/scripts/casper-bottom/05mountpoints
+
+# create a partial initramd with the patched file
+cd /tmp/initrd_out/main/
+find . -name 05mountpoints | cpio -H newc -o > /tmp/initrd.partial.lz
+
+# append the partial initramd to the original initramd, last file overwrites the original one at runtime
+cat /tmp/u20.04-custom-environ/isomount/casper/initrd.lz /tmp/u20.04-custom-environ/initrd.partial.lz > /tmp/u20.04-custom-environ/initrd.lz 
+
+# copy iso contents to a new rw dir
+mkdir /tmp/iso_out
+rsync -a /tmp/isomount/ /tmp/iso_out
+
+# replace initrd.lz in the new iso
+sudo cp /tmp/u20.04-custom-environ/initrd.lz /tmp/u20.04-custom-environ/iso_out/casper/
+
+# create the new iso
+sudo mkisofs -D -r -V "LIVE" -cache-inodes -J -l -b isolinux/isolinux.bin -c boot.catalog -no-emul-boot -boot-load-size 4 -boot-info-table -o /tmp/custom.iso /tmp/iso_out/
+
+# TEST
+
+-------
+Modified casper/scripts/casper-bottom/05mountpoints file from Qumulo-7.4
+-------
+#!/bin/sh
+
+PREREQ=""
+DESCRIPTION="Moving mount points..."
+
+prereqs()
+{
+       echo "$PREREQ"
+}
+
+case $1 in
+# get pre-requisites
+prereqs)
+       prereqs
+       exit 0
+       ;;
+esac
+
+. /scripts/casper-functions
+
+log_begin_msg "$DESCRIPTION"
+
+# Move to the new root filesystem so that programs there can get at it.
+mkdir -p /root/cdrom
+mount -n -o move /cdrom /root/cdrom
+
+# temporary hack for LP#727783
+mkdir -p /root/media
+ln -s /cdrom /root/media/cdrom
+
+log_end_msg
+
+# Add these lines to boot in memory toram
+ln -s /cdrom /root/media/cdrom
+mount -n -o move /isodevice /root/isodevice
