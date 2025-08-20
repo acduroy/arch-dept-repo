@@ -1,0 +1,59 @@
+To access the serial console:
+Ref: https://serverfault.com/questions/444140/with-the-supermicro-embedded-bmc-is-it-possible-to-connect-to-serial-over-lan-v
+
+Prerequisite:
+1. SOL is enabled at the 
+
+ssh ADMIN@<bmc-ip>
+<input password>
+
+Note:
+If you encounter problem connecting with an error message as shown below:
+"Unable to negotiate with 192.168.12.122 port 22: no matching host key type found. Their offer: ssh-rsa"
+
+Temporary fix:
+  ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa user@192.168.12.122
+
+  Replace user with the actual username for the remote host.
+
+Permanent fix:
+* Configure ssh-rsa acceptance in your SSH client's configuration file: 
+  For a more permanent solution without upgrading the server, you can modify your ~/.ssh/config file to allow ssh-rsa for the specific host:
+
+Code
+
+    Host 192.168.12.122
+        HostKeyAlgorithms +ssh-rsa
+        PubkeyAcceptedAlgorithms +ssh-rsa
+
+ 
+Once login successfully:
+cd system1/sol1
+start
+
+To exit the console:
+* You need to press Enter, Esc, Shift-T   
+  
+  OR
+
+* Type ~. (tilde followed by a period) and press Enter.
+
+Note:
+if ssh to the BMC does not work, then use ipmitool or ipmiconsole instead. Below is the syntax
+
+CODE:
+
+ ipmitool -C 3 -I lanplus -H <bmc-ip> -U <user> -P <password> sol activate
+
+ OR
+
+ ipmiconsole -h <bmc-ip> -u <user> -p <password>
+
+--------------------------------------
+With SOL enabled and functional:
+--------------------------------------
+<Setting name="Console Redirection" order="1" checkedStatus="Checked" type="CheckBox">
+<Setting name="Terminal Type" order="2" selectedOption="VT100" type="Option">
+<Setting name="Console Redirection" order="3" checkedStatus="Checked" type="CheckBox">
+
+
