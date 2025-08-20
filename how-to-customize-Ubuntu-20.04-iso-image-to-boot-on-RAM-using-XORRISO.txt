@@ -1,0 +1,40 @@
+Ref:
+https://www.google.com/search?q=how+to+customize+Ubuntu+20.04+iso+image+to+boot+on+RAM+using+XORRISO&rlz=1C1GCEB_enUS1166US1166&oq=how+to+customize+Ubuntu+20.04+iso+image+to+boot+on+RAM+using+XORRISO+&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQIRiPAjIHCAIQIRiPAtIBCTY5NDE1ajBqN6gCALACAA&sourceid=chrome&ie=UTF-8
+
+1. Prerequisites
+   * Install necessary tools: 
+     sudo apt install xorriso squashfs-tools.
+   * Download the official Ubuntu 20.04 ISO image.
+
+2. Extract the ISO content
+   * Create a directory to work in, then extract the ISO's contents into it:
+     bash code:
+     mkdir custom-ubuntu
+     cd custom-ubuntu
+     xorriso -osirrox on -indev ubuntu-20.04-desktop-amd64.iso -extract / custom-iso
+
+3. Customize for RAM boot
+   - Modify grub.cfg: Navigate to the custom-iso/boot/grub/ directory.
+   - Locate the linux line within the "Try Ubuntu without installing" menu entry.
+   - Add the toram boot option: Append toram (with a space before it) after quiet splash or at the end of the linux line. 
+
+     For example:
+     linux (loop)/casper/vmlinuz boot=casper iso-scan/filename=$isofile persistent persistent-path=/ub2004-1/ fsck.mode=skip quiet splash toram --
+
+4. Rebuild the ISO
+   - Use xorriso to create the new customized ISO image:
+     bash code:
+     cd custom-iso
+     sudo xorriso -as mkisofs -isohybrid-mbr isolinux/isohdpfx.bin \
+     -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 \
+     -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
+     -isohybrid-gpt-basdat -o ../custom-ubuntu.iso .
+
+      Note: The exact xorriso command options may vary slightly depending on your specific needs (e.g., UEFI vs. BIOS boot).
+
+5. Boot from the customized ISO
+   - Burn the custom-ubuntu.iso to a DVD or write it to a USB drive using ddrescue or similar tools.
+   - Boot your computer from the newly created medium.
+   - At the GRUB menu, choose the option to "Try or Install Ubuntu".
+   - If you added the toram option correctly, the system should load entirely into RAM.
+   - Once booted into the live environment, you can remove the installation media.
